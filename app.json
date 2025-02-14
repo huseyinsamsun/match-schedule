@@ -2,20 +2,50 @@
   "expo": {
     "name": "Maç Takvimi",
     "slug": "match-schedule", 
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
+    "jsEngine": "jsc",
+    "assetBundlePatterns": [
+      "assets/*",
+      "assets/images/*"
+    ],
     "ios": {
       "supportsTablet": true,
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "UIStatusBarHidden": false,
+        "UIRequiresFullScreen": true,
+        "CFBundleIconName": "AppIcon",
+        "UILaunchStoryboardName": "SplashScreen",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "UIBackgroundModes": ["remote-notification"]
+      },
+      "icon": "./assets/images/icon.png",
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0066cc"
+      },
       "bundleIdentifier": "com.coymax0.matchschedule",
-      "buildNumber": "1"
+      "buildNumber": "9",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#0066cc",
+      "translucent": false
     },
     "android": {
       "package": "com.coymax0.matchschedule",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -23,12 +53,19 @@
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "ACCESS_WIFI_STATE"
+        "ACCESS_WIFI_STATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM"
       ],
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": true,
-      "enableProguardInReleaseBuilds": true,
-      "enableHermes": true
+      "enableProguardInReleaseBuilds": false,
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0066cc"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -43,7 +80,15 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0066cc"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#0066cc",
+          "sounds": ["./assets/sounds/notification.wav"]
         }
       ]
     ],
@@ -63,9 +108,34 @@
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_ERROR_RECOVERY"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "jsEngine": "hermes"
+    "developmentClient": {
+      "silentLaunch": false
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#0066cc",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Maç Takvimi",
+      "iosDisplayInForeground": true,
+      "channels": [
+        {
+          "name": "match-reminders",
+          "importance": "high",
+          "sound": "notification.wav",
+          "vibrate": [0, 250, 250, 250],
+          "description": "Maç hatırlatıcıları için bildirim kanalı"
+        },
+        {
+          "name": "lineups-notification",
+          "importance": "high",
+          "sound": "notification.wav",
+          "vibrate": [0, 250, 250, 250],
+          "description": "İlk 11'ler için bildirim kanalı"
+        }
+      ]
+    }
   }
 }

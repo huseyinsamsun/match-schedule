@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import axios from 'axios';
 import { API_CONFIG } from '../config/api';
-
-
+import MatchReminder from './MatchReminder';
+import LeagueStandings from './LeagueStandings';
+import { MaterialIcons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 
 const LEAGUES = [
  { id: 203, name: "Süper Lig" },
@@ -28,14 +30,14 @@ const BROADCASTERS = {
    default: "beIN Sports"
  }),
  204: Platform.select({
-   ios: "TRT Spor",
-   android: "TRT Spor Yıldız",
-   default: "TRT Spor"
+   ios: "TRT",
+   android: "TRT",
+   default: "TRT"
  }),
  205: Platform.select({
-   ios: "TRT Spor",
-   android: "TRT Spor Yıldız",
-   default: "TRT Spor"
+   ios: "TRT",
+   android: "TRT",
+   default: "TRT"
  }),
  2: Platform.select({
    ios: "beIN Sports",
@@ -43,9 +45,9 @@ const BROADCASTERS = {
    default: "beIN Sports"
  }),
  3: Platform.select({
-   ios: "EXXEN",
-   android: "EXXEN",
-   default: "EXXEN"
+   ios: "TRT",
+   android: "TRT",
+   default: "TRT"
  }),
  848: Platform.select({
    ios: "EXXEN",
@@ -89,6 +91,16 @@ const BROADCASTERS = {
  })
 };
 
+// Bildirim ayarlarını yapılandır
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.HIGH,
+  }),
+});
+
 const MatchSchedule = () => {
  const [matchesByLeague, setMatchesByLeague] = useState({});
  const [loading, setLoading] = useState(true);
@@ -97,6 +109,8 @@ const MatchSchedule = () => {
  const [expandedMatchId, setExpandedMatchId] = useState(null);
  const [loadingLineups, setLoadingLineups] = useState(false);
  const [lineups, setLineups] = useState({});
+ const [showStandings, setShowStandings] = useState({});
+ const [lineupsNotified, setLineupsNotified] = useState(new Set());
 
  const fetchMatches = async () => {
    try {
@@ -234,6 +248,46 @@ const MatchSchedule = () => {
    }
  };
 
+ const checkLineups = async (match) => {
+   try {
+     if (lineupsNotified.has(match.fixture.id)) {
+       return;
+     }
+
+     const response = await axios.get(`https://${API_CONFIG.HOST}/fixtures/lineups`, {
+       params: {
+         fixture: match.fixture.id
+       },
+       headers: {
+         'x-rapidapi-key': API_CONFIG.KEY,
+         'x-rapidapi-host': API_CONFIG.HOST
+       }
+     });
+
+     if (response.data?.response?.length > 0) {
+       await Notifications.scheduleNotificationAsync({
+         content: {
+           title: "İlk 11'ler Açıklandı!",
+           body: `${match.teams.home.name} vs ${match.teams.away.name} maçının ilk 11'leri açıklandı!`,
+           data: { matchId: match.fixture.id },
+           sound: true,
+           priority: 'high',
+           vibrate: [0, 250, 250, 250],
+         },
+         trigger: {
+           type: 'date',
+           timestamp: Date.now(),
+           channelId: 'lineups-notification'
+         }
+       });
+
+       setLineupsNotified(prev => new Set([...prev, match.fixture.id]));
+     }
+   } catch (error) {
+     console.error('Lineup check error:', error);
+   }
+ };
+
  useEffect(() => {
    let isMounted = true;
    let intervalId = null;
@@ -268,6 +322,32 @@ const MatchSchedule = () => {
    };
  }, []);
 
+ useEffect(() => {
+   let intervalId;
+
+   const checkAllLineups = async () => {
+     Object.values(matchesByLeague).forEach(matches => {
+       matches.forEach(match => {
+         const matchTime = new Date(match.fixture.date);
+         const now = new Date();
+         if (matchTime - now <= 3600000 && matchTime > now) {
+           checkLineups(match);
+         }
+       });
+     });
+   };
+
+   if (Object.keys(matchesByLeague).length > 0) {
+     intervalId = setInterval(checkAllLineups, 300000);
+   }
+
+   return () => {
+     if (intervalId) {
+       clearInterval(intervalId);
+     }
+   };
+ }, [matchesByLeague]);
+
  const getMatchStatus = (status) => {
    switch(status.short) {
      case '1H':
@@ -291,48 +371,51 @@ const MatchSchedule = () => {
    }
  };
 
- const renderLineups = (match) => {
-   if (!match) return null;
-
+ const renderLineups = (matchId) => {
    if (loadingLineups) {
      return (
-       <View style={styles.lineupsContainer}>
+       <View style={styles.loadingContainer}>
          <ActivityIndicator size="small" color="#0066cc" />
-         <Text style={styles.lineupText}>İlk 11'ler yükleniyor...</Text>
+         <Text style={styles.loadingText}>İlk 11'ler yükleniyor...</Text>
        </View>
      );
    }
 
-   const matchLineups = lineups[match.fixture.id];
-
+   const matchLineups = lineups[matchId];
+  
    if (!matchLineups) {
      return (
-       <View style={styles.lineupsContainer}>
-         <Text style={styles.lineupText}>İlk 11'ler henüz açıklanmadı</Text>
+       <View style={styles.noLineupContainer}>
+         <Text style={styles.noLineupText}>İlk 11'ler henüz açıklanmadı</Text>
        </View>
      );
    }
 
    return (
      <View style={styles.lineupsContainer}>
-       <View style={styles.teamLineup}>
-         <Text style={styles.teamName}>{matchLineups[0].team.name}</Text>
-         {matchLineups[0].startXI.map((player, index) => (
-           <Text key={index} style={styles.playerText}>
-             {player.player.name}
-           </Text>
-         ))}
-       </View>
-       <View style={[styles.teamLineup, styles.awayTeam]}>
-         <Text style={styles.teamName}>{matchLineups[1].team.name}</Text>
-         {matchLineups[1].startXI.map((player, index) => (
-           <Text key={index} style={styles.playerText}>
-             {player.player.name}
-           </Text>
+       <View style={styles.lineupsRow}>
+         {matchLineups.map((team, index) => (
+           <View key={index} style={[styles.teamLineup, index === 1 && styles.awayTeam]}>
+             <Text style={styles.teamName}>{team.team.name}</Text>
+             <View style={styles.playersList}>
+               {team.startXI && team.startXI.map((player, playerIndex) => (
+                 <Text key={playerIndex} style={styles.playerText}>
+                   {player.player.number}. {player.player.name}
+                 </Text>
+               ))}
+             </View>
+           </View>
          ))}
        </View>
      </View>
    );
+ };
+
+ const toggleStandings = (leagueId) => {
+   setShowStandings(prev => ({
+     ...prev,
+     [leagueId]: !prev[leagueId]
+   }));
  };
 
  const renderLeagueMatches = (leagueId) => {
@@ -343,7 +426,22 @@ const MatchSchedule = () => {
 
    return (
      <View key={leagueId} style={styles.leagueSection}>
-       <Text style={styles.leagueTitle}>{league?.name || 'Yüklenemedi'}</Text>
+       <TouchableOpacity 
+         style={styles.leagueHeader}
+         onPress={() => toggleStandings(leagueId)}
+       >
+         <Text style={styles.leagueTitle}>{league?.name || 'Yüklenemedi'}</Text>
+         <MaterialIcons 
+           name={showStandings[leagueId] ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+           size={24} 
+           color="#1a237e" 
+         />
+       </TouchableOpacity>
+       
+       {showStandings[leagueId] && (
+         <LeagueStandings leagueId={leagueId} />
+       )}
+
        {matches.map(match => (
          <TouchableOpacity 
            key={match?.fixture?.id || Math.random()} 
@@ -378,12 +476,17 @@ const MatchSchedule = () => {
                {match?.teams?.away?.name || 'Yüklenemedi'}
              </Text>
            </View>
-           <View style={styles.broadcasterContainer}>
-             <Text style={styles.broadcasterText}>
-               {BROADCASTERS[leagueId] || 'Yüklenemedi'}
-             </Text>
+           
+           <View style={styles.actionContainer}>
+             <View style={styles.broadcasterContainer}>
+               <Text style={styles.broadcasterText}>
+                 {BROADCASTERS[leagueId] || 'Yüklenemedi'}
+               </Text>
+             </View>
+             <MatchReminder match={match} />
            </View>
-           {expandedMatchId === match.fixture.id && renderLineups(match)}
+
+           {expandedMatchId === match.fixture.id && renderLineups(match.fixture.id)}
          </TouchableOpacity>
        ))}
      </View>
@@ -553,19 +656,21 @@ const styles = StyleSheet.create({
    letterSpacing: 0.5
  },
  lineupsContainer: {
-   flexDirection: 'row',
-   justifyContent: 'space-between',
    marginTop: 16,
    paddingTop: 16,
    borderTopWidth: 1,
    borderTopColor: '#e8eaf6',
+ },
+ lineupsRow: {
+   flexDirection: 'row',
+   justifyContent: 'space-between',
+   gap: 8,
  },
  teamLineup: {
    flex: 1,
    padding: 12,
    backgroundColor: '#fff',
    borderRadius: 12,
-   margin: 6,
    ...Platform.select({
      ios: {
        shadowColor: '#000',
@@ -592,23 +697,53 @@ const styles = StyleSheet.create({
    borderBottomColor: '#e8eaf6',
    letterSpacing: 0.5
  },
+ playersList: {
+   paddingHorizontal: 8
+ },
  playerText: {
    fontSize: 13,
-   marginVertical: 3,
-   textAlign: 'center',
    color: '#3949ab',
+   fontWeight: '500',
+   letterSpacing: 0.3,
+   marginVertical: 2,
+   paddingVertical: 1
+ },
+ loadingContainer: {
+   padding: 12,
+   alignItems: 'center',
+   justifyContent: 'center',
+   flexDirection: 'row'
+ },
+ noLineupContainer: {
+   padding: 12,
+   alignItems: 'center',
+   justifyContent: 'center'
+ },
+ noLineupText: {
+   color: '#5c6bc0',
+   fontSize: 14,
    fontWeight: '500',
    letterSpacing: 0.3
  },
- lineupText: {
-   fontSize: 14,
-   color: '#5c6bc0',
-   textAlign: 'center',
-   fontStyle: 'italic',
-   marginTop: 6,
-   fontWeight: '500',
-   letterSpacing: 0.3
- }
+ leagueHeader: {
+   flexDirection: 'row',
+   justifyContent: 'space-between',
+   alignItems: 'center',
+   paddingVertical: 12,
+   paddingHorizontal: 16,
+   backgroundColor: '#f5f6fa',
+   borderRadius: 10,
+   marginBottom: 10,
+ },
+ actionContainer: {
+   flexDirection: 'row',
+   justifyContent: 'space-between',
+   alignItems: 'center',
+   marginTop: 10,
+   paddingTop: 10,
+   borderTopWidth: 1,
+   borderTopColor: '#e8eaf6',
+ },
 });
 
 export default MatchSchedule;

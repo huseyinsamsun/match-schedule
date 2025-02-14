@@ -1,15 +1,13 @@
 import { Stack } from 'expo-router';
+import { View } from 'react-native';
 
-export default function Layout() {
+export default function TabLayout() {
   return (
-    <Stack screenOptions={{
-      headerShadowVisible: false,
-      headerTitleAlign: 'center',
-    }}>
-      <Stack.Screen 
-        name="index" 
-        options={{
-          title: 'Maç Takvimi',
+    <View style={{ flex: 1 }}>
+      <Stack
+        screenOptions={{
+          headerShadowVisible: false,
+          headerTitleAlign: 'center',
           headerStyle: {
             backgroundColor: '#0066cc',
           },
@@ -17,11 +15,16 @@ export default function Layout() {
           headerTitleStyle: {
             fontSize: 20,
             fontWeight: '600',
-          },
-          animation: 'slide_from_right',
-          statusBarStyle: 'light',
+          }
         }}
-      />
-    </Stack>
+      >
+        <Stack.Screen 
+          name="index" 
+          options={{
+            title: 'Maç Takvimi',
+          }}
+        />
+      </Stack>
+    </View>
   );
 }
